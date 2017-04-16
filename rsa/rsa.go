@@ -14,19 +14,35 @@ type KeyPair struct {
 	PrivKey Key
 }
 
-func (k *Key) Encrypt(b []byte) []byte {
-	log.Infof("Encrypting %v", b)
-	toRet := []byte{}
-	res := big.NewInt(0)
-	for i := range b {
-		m := int8(b[i])
-		log.Infof("m: %v", m)
-		log.Infof("m 64: %v", int64(m))
-		res.Exp(big.NewInt(int64(m)), k.Exponent, nil)
-		res.Mod(res, k.Mod)
-		log.Info(res)
+func (k *KeyPair) Pad(data []byte) []byte {
+	paddedData := make([]byte, k.Size/8)
+
+	for i := range paddedData {
+		flip := len(paddedData) - 1 - i
+		if i < len(data) {
+			paddedData[flip] = data[i]
+		} else {
+			paddedData[flip] = 0
+		}
 	}
-	return toRet
+
+	log.Infof("Padded to %v", paddedData)
+	return paddedData
+}
+
+func (k *Key) Encrypt(data []byte) []byte {
+	log.Infof("Encrypting %v", data)
+
+	inputInt := big.NewInt(0)
+	inputInt.SetBytes(data)
+
+	log.Infof("Input int is: %v", inputInt)
+	inputInt.Exp(inputInt, k.Key, nil)
+	log.Infof("After Exp int is: %v", inputInt)
+	inputInt.Mod(inputInt, k.Mod)
+	log.Infof("After Mod int is: %v", inputInt)
+
+	return inputInt.Bytes()
 }
 
 func (kp *KeyPair) String() string {
@@ -38,14 +54,14 @@ func (kp *KeyPair) String() string {
 }
 
 type Key struct {
-	Size     int
-	Exponent *big.Int
-	Mod      *big.Int
+	Size int
+	Key  *big.Int
+	Mod  *big.Int
 }
 
 func (k *Key) String() string {
 	s1 := ""
-	s1 += fmt.Sprintf("Exponent: [%v]\n", k.Exponent)
+	s1 += fmt.Sprintf("Key: [%v]\n", k.Key)
 	s1 += fmt.Sprintf("Mod: [%v]\n", k.Mod)
 	return s1
 }
@@ -74,14 +90,14 @@ func RSAGen(size int) *KeyPair {
 	toRet := &KeyPair{
 		Size: size,
 		PubKey: Key{
-			Size:     size,
-			Mod:      n,
-			Exponent: big.NewInt(65537),
+			Size: size,
+			Mod:  n,
+			Key:  big.NewInt(65537),
 		},
 		PrivKey: Key{
-			Size:     size,
-			Mod:      d,
-			Exponent: big.NewInt(65537),
+			Size: size,
+			Mod:  d,
+			Key:  big.NewInt(65537),
 		},
 	}
 	return toRet
@@ -112,11 +128,52 @@ func getPrime(seed int64, size int) *big.Int {
 	log.Infof("Proceeding with: %v", bigV)
 
 	for !bigV.ProbablyPrime(10) {
-		log.Info("Testing for prime: %v", bigV)
+		log.Infof("Testing for prime: %v", bigV)
 		log.Info("Probably not prime! Adding 2.")
 		bigV = bigV.Add(bigV, big.NewInt(2))
 	}
 
 	log.Infof("%v is probably prime.", bigV)
+	/*
+		log.Infof("Let's make sure...")
+		if ensurePrime(bigV) {
+			return bigV
+		} else {
+			return getPrime(seed, size)
+		}
+	*/
 	return bigV
+}
+
+func ensurePrime(int *big.Int) bool {
+	i := big.NewInt(1)
+	j := big.NewInt(1)
+
+	sqrt := big.NewInt(0)
+	sqrt.Sqrt(int)
+
+	res := big.NewInt(0)
+	outerGo := true
+	innerGo := true
+	for outerGo {
+		log.Infof("Outer with i = %v, j = %v", i, j)
+		for innerGo {
+			log.Infof("Inner with i = %v, j = %v", i, j)
+			res.Mul(i, j)
+			if res == int {
+				return false
+			}
+			j.Add(j, big.NewInt(1))
+
+			if j.Cmp(sqrt) > 0 {
+				j = big.NewInt(1)
+				break
+			}
+		}
+		i.Add(i, big.NewInt(1))
+		if i.Cmp(sqrt) > 0 {
+			break
+		}
+	}
+	return true
 }

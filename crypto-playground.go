@@ -27,9 +27,10 @@ func init() {
 
 func main() {
 	log.Info("Starting main program.")
-	kp := rsa.RSAGen(2048)
-	log.Info(kp.String())
-	log.Info(kp.PrivKey.Encrypt([]byte{1, 2, 8}))
+	kp := rsa.RSAGen(64)
+	input := []byte{1, 2, 3}
+	ct := kp.PubKey.Encrypt(kp.Pad(input))
+	log.Info(kp.PrivKey.Encrypt(ct))
 }
 
 func check(e error) {
